@@ -1,0 +1,205 @@
+{
+  "name": "Reddit Lead Gen",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this post:\n\nTitle: {{ $json.title }}\nAuthor: {{ $json.author }}\nContent: {{ $json.cleaned_content }}",
+        "options": {
+          "systemMessage": "Your job is to analyze the following Reddit post text and determine if the author is an active, high-intent prospective client seeking workflow automation, custom app development, or backend API integrations.\n\n[THE CONTEXT]\nThe user is a business operator, developer, or agency owner posting on Reddit. You must evaluate if their problem can be solved by an AI Automation Engineer (e.g., building n8n workflows).\n\n[CRITICAL RULE: FILTER OUT THE DEVELOPER BUBBLE]\nThe automation subreddits suffer from a heavy influx of \"Builder Bubble\" noise—other developers trying to sell their own newly created AI tools, wrappers, or boilerplate frameworks. You MUST strictly ignore these posts. Do not count them as valid leads.\n- If a post says \"I built a new tool...\", \"Check out my wrapper...\", or \"Looking for feedback on my app...\", classify it instantly as Match Quality: LOW and stop analyzing.\n\n[VALID LEAD CRITERIA]\nOnly flag a post as a high-quality lead if the user is a business owner, operator, or freelancer explicitly complaining about:\n1. Manual operational bottlenecks (e.g., \"I'm spending 4 hours a day copy-pasting data...\").\n2. Broken software stacks or API integration friction (e.g., \"Meta's developer webhooks are failing...\", \"How do I connect Firebase to my frontend?\").\n3. Actively looking to hire or outsourcing tech tasks.\n\n[OUTPUT FORMAT]\nYou must output your final response using this exact markdown structure so it looks clean on a mobile phone notification:\n\n🚨 **NEW HIGH-INTENT LEAD DETECTED** 🚨\n• **Match Quality:** [High / Low]\n• **Core Pain Point:** [1-sentence summary of their technical or business bottleneck]\n• **The Tech Stack Involved:** [e.g., Node.js, Firebase, Meta APIs, Shopify, etc.]\n\n💡 **ACTIONABLE HOOK FOR OUTREACH:**\n\"[Write a highly personalized, value-first, non-salesy 1-sentence opening line the agency owner can use to reply to this thread. Acknowledge their exact technical pain point and hint at a clean backend solution without sounding like a generic bot.]\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "fc320cef-d96f-4da3-a744-8cbfa5ccae88",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "url": "https://old.reddit.com/r/automation/new/.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "eafff0f0-0138-42c8-9c4d-2231758f57dd",
+      "name": "RSS Read"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop through the individual items passing through the node\nfor (const item of $input.all()) {\n  if (item.json.content) {\n    item.json.cleaned_content = item.json.content\n      .replace(/<[^>]*>/g, '') // Strips out all HTML tags (<p>, <div>, etc.)\n      .replace(/&quot;/g, '\"')  // Converts HTML quotes to real quotes\n      .replace(/&#39;/g, \"'\")   // Converts HTML apostrophes\n      .replace(/&amp;/g, '&');  // Converts HTML ampersands\n  }\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "d037fa24-ae67-4dac-b656-ad19aa1baedc",
+      "name": "Data Clean Up"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        928,
+        224
+      ],
+      "id": "5940ef5a-484a-4617-89bf-ce679d54e55b",
+      "name": "Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4tjaIcybl6l6Rgya",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "test@gmail.com",
+        "subject": "Update",
+        "message": "=Here\n\n{{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "3e94d20c-e94a-48cd-aee6-0ce21ca91fd5",
+      "name": "Email",
+      "webhookId": "6b1f8209-d06c-46ae-94e8-83f6a503ccdd",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "33mszLtjpBDovtgL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "maxItems": 3
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "d28fbb4a-1029-4f13-84b4-c81e80fa4169",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ecb6f81f-033a-4aad-b38e-df979489dcde",
+      "name": "Every Day"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Clean Up": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Data Clean Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every Day": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "27d81c94-3962-46c5-9b66-921fbde23df4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a8c40d59464c37cd2053a040e4bf075f84ad03805d6400adb5e8c6da8cfdfcd6"
+  },
+  "nodeGroups": [],
+  "id": "WVW6HY2ZDsJMK76F",
+  "tags": []
+}
